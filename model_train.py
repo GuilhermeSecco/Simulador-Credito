@@ -199,11 +199,14 @@ def comparar_modelos(X_train, X_test, y_train, y_test, modelos_dict, pasta_plots
     resultados_df = pd.DataFrame(resultados).T.sort_values(by="f1_score", ascending=False)
     print("\n📊 Resultados comparativos:\n", resultados_df.round(4))
 
+    melhor_nome = max(resultados, key=lambda m: (resultados[m]["f1_score"] or 0))
+    print(f"\n🏆 Melhor modelo com base no F1-Score: {melhor_nome}")
+
     from plot_utils import plotar_comparativo_roc
 
     plotar_comparativo_roc(modelos_treinados, X_test, y_test, pasta_plots)
 
-    return resultados_df
+    return resultados_df, modelos_treinados[melhor_nome]
 
 def main(use_smote = False):
     #Lista com os datasets que serão utilizados
@@ -287,7 +290,17 @@ def main(use_smote = False):
     # Treinamento e Avaliação
     # ============================
 
-    resultados_df = comparar_modelos(X_train_ready, X_test_ready, y_train, y_test, modelos_dict, pasta_plots=pasta_plots)
+    resultados_df, melhor_modelo = comparar_modelos(X_train_ready, X_test_ready, y_train, y_test, modelos_dict, pasta_plots=pasta_plots)
+
+    from joblib import dump
+    import os
+
+    # Salva o modelo escolhido
+    os.makedirs("models", exist_ok=True)
+    caminho_modelo = f"models/{melhor_modelo.__class__.__name__}.pkl"
+
+    dump(melhor_modelo, caminho_modelo)
+    print(f" Modelo {melhor_modelo} salvo em: {caminho_modelo}")
 
     # Exporta tabela de comparação para CSV
     resultados_df.to_csv(resultados_path)
