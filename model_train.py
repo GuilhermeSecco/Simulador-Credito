@@ -1,6 +1,7 @@
 import pandas as pd
 from data_wrangling import *
 from plot_utils import salvar_plot
+import time
 
 def treinar_modelo(X_train, y_train, biblioteca, model, **config):
     #Importando as bibliotecas
@@ -24,7 +25,7 @@ def treinar_modelo(X_train, y_train, biblioteca, model, **config):
     print(f"\nModelo: {modelo.__class__.__name__}, treinado com sucesso!")
     return modelo
 
-def avaliar_modelo(modelo, X_test, y_test):
+def avaliar_modelo(modelo, X_test, y_test, pasta_plots):
     #Importando as bibliotecas
     from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                                  f1_score, confusion_matrix, classification_report, roc_curve, auc)
@@ -67,7 +68,7 @@ def avaliar_modelo(modelo, X_test, y_test):
     plt.xlabel("")
     plt.ylabel("")
     plt.title(f"Matriz de Confusão - {modelo.__class__.__name__}")
-    salvar_plot(modelo.__class__.__name__, model=True, metrica="Matriz_Confusao")
+    salvar_plot(modelo.__class__.__name__, pasta_base=pasta_plots, model=True, metrica="Matriz_Confusao")
     plt.tight_layout()
     plt.close()
 
@@ -82,23 +83,26 @@ def avaliar_modelo(modelo, X_test, y_test):
         plt.xlabel("Falsos Positivos")
         plt.ylabel("Verdadeiros Positivos")
         plt.legend()
-        salvar_plot(modelo.__class__.__name__, model=True, metrica="Curva_ROC")
+        salvar_plot(modelo.__class__.__name__, pasta_base=pasta_plots, model=True, metrica="Curva_ROC")
         plt.close()
 
     # 3️⃣ Importância das features
     if hasattr(modelo, "feature_importances_"):
         importances = modelo.feature_importances_
+        #Normaliza automaticamente caso as importâncias não estejam entre 0 e 1
+        if importances.max() > 1:
+            importances = importances / importances.sum()
         features = X_test.columns
         importancia = pd.Series(importances, index=features).sort_values(ascending=False)
 
         # Mostrando o top 10  no console
-        print("\nTop 10 variáveis mais importantes:")
+        print(f"\nTop 10 variáveis mais importantes para o modelo: {modelo.__class__.__name__}")
         print(importancia.head(10).round(4).to_string())
 
         #Salvando em CSV
         import os
         import pandas as pd
-        pasta_modelo = os.path.join("plots", "models_plots", modelo.__class__.__name__)
+        pasta_modelo = os.path.join(pasta_plots, modelo.__class__.__name__)
         os.makedirs(pasta_modelo, exist_ok=True)
         caminho_csv = os.path.join(pasta_modelo, "Importancia_Features.csv")
         importancia.to_csv(caminho_csv, header=["Importância"], index_label="Variável")
@@ -149,23 +153,68 @@ def avaliar_modelo(modelo, X_test, y_test):
             plt.text(v + xmax * 0.01, i, f"{pct:.1f}%", va='center', fontsize=12)
 
         plt.tight_layout()
-        salvar_plot(modelo.__class__.__name__, model=True, metrica="Importancia_Features")
+        salvar_plot(modelo.__class__.__name__, pasta_base=pasta_plots, model=True, metrica="Importancia_Features")
         plt.close()
 
     return {"accuracy": acc, "precision": prec, "recall": rec, "f1_score": f1}
 
-def comparar_modelos(X_train, X_test, y_train, y_test, modelos_dict):
+def comparar_modelos(X_train, X_test, y_train, y_test, modelos_dict, pasta_plots):
     resultados = {}
+    modelos_treinados = {}
+
+    print("\nIniciando comparativo entre os modelos...\n")
+    tempo_total_inicio = time.time()
 
     for nome, (biblioteca, classe, config) in modelos_dict.items():
-        print(f"\n Treinando modelo: {nome}")
-        modelo = treinar_modelo(X_train, y_train, classe, **config)
-def main():
+        print(f"Treinando modelo: {nome}\n")
+        inicio = time.time()
+
+        print("Verificando tamanhos dos datasets:")
+        print(f"X_train: {X_train.shape}")
+        print(f"y_train: {y_train.shape}")
+        print(f"X_test: {X_test.shape}")
+        print(f"y_test: {y_test.shape}\n")
+
+        try:
+            modelo = treinar_modelo(X_train, y_train, biblioteca, classe, **config)
+            modelos_treinados[nome] = modelo
+            metricas = avaliar_modelo(modelo, X_test, y_test, pasta_plots=pasta_plots)
+            fim = time.time()
+
+            duracao = fim - inicio
+            metricas["tempo_segundos"] = round(duracao, 2)
+            resultados[nome] = metricas
+
+            print(f"⏱️ Tempo de execução ({nome}): {duracao:.2f} segundos")
+
+        except Exception as e:
+            import traceback
+            print(f"\n⚠️ Erro ao treinar {nome}: {e}")
+            traceback.print_exc()
+
+    tempo_total_fim = time.time()
+    tempo_total = tempo_total_fim - tempo_total_inicio
+    print(f"\n🏁 Todos os modelos foram avaliados em {tempo_total:.2f} segundos.")
+
+    resultados_df = pd.DataFrame(resultados).T.sort_values(by="f1_score", ascending=False)
+    print("\n📊 Resultados comparativos:\n", resultados_df.round(4))
+
+    from plot_utils import plotar_comparativo_roc
+
+    plotar_comparativo_roc(modelos_treinados, X_test, y_test, pasta_plots)
+
+    return resultados_df
+
+def main(use_smote = False):
     #Lista com os datasets que serão utilizados
     datasets = ["X_train", "X_test", "y_train", "y_test"]
 
     #Importando os datasets
     X_train, X_test, y_train, y_test = importando_treino_teste(datasets)
+
+    #Corrigindo o formato do Valor-alvo
+    y_train = y_train.squeeze()
+    y_test = y_test.squeeze()
 
     #Separando as colunas em numéricas ou categóricas
     numericas, categoricas = identificar_colunas(X_train)
@@ -191,9 +240,58 @@ def main():
     X_train_ready = pd.DataFrame(X_train_ready, columns=todas_cols)
     X_test_ready = pd.DataFrame(X_test_ready, columns=todas_cols)
 
-    modelo = treinar_modelo(X_train_ready, y_train, biblioteca="sklearn.ensemble", model="RandomForestClassifier",
-                            n_estimators=200, max_depth=10, random_state=42, n_jobs=-1)
 
-    resultados = avaliar_modelo(modelo, X_test_ready, y_test)
+    #Escolha entre original e SMOTE
+    # ============================
+
+    if use_smote:
+        print("\n🚀 Aplicando SMOTE para balanceamento das classes...")
+        from imblearn.over_sampling import SMOTE
+        smote = SMOTE(random_state=42, sampling_strategy='auto')
+        X_train_ready, y_train = smote.fit_resample(X_train_ready, y_train)
+        print("Dados balanceados com sucesso!")
+        print(f"Distribuição pós-SMOTE: {pd.Series(y_train).value_counts().to_dict()}")
+
+        pasta_plots = "plots/models_plots_smote"
+        resultados_path = "plots/model_results_comparison_SMOTE.csv"
+    else:
+
+        print("\n⚙️ Usando dados originais (sem balanceamento).")
+        pasta_plots = "plots/models_plots"
+        resultados_path = "plots/model_results_comparison.csv"
+
+    #Dicionário com as configurações dos modelos de ML
+    modelos_dict = {
+        "RandomForest": ("sklearn.ensemble", "RandomForestClassifier",
+                         {"n_estimators": 200, "max_depth": 10, "random_state": 42, "n_jobs": -1}),
+
+        "LogisticRegression": ("sklearn.linear_model", "LogisticRegression",
+                               {"max_iter": 1000, "solver": "lbfgs"}),
+
+        "GradientBoosting": ("sklearn.ensemble", "GradientBoostingClassifier",
+                             {"n_estimators": 150, "learning_rate": 0.1, "random_state": 42}),
+
+        "XGBoost": ("xgboost", "XGBClassifier",
+                    {"n_estimators": 2000, "learning_rate": 0.1, "max_depth": 6, "random_state": 42, "n_jobs": -1,
+                     "tree_method": "hist"}),
+
+        "LightGBM": ("lightgbm", "LGBMClassifier",
+                     {"n_estimators": 2000, "learning_rate": 0.1, "max_depth": -1, "random_state": 42, "n_jobs": -1,
+                      "device_type": "gpu", "verbose": 0}),
+
+        "SGDClassifier": ("sklearn.linear_model", "SGDClassifier",
+                          {"loss": "modified_huber", "penalty": "l2", "alpha": 0.0001,
+                           "max_iter": 2000, "tol": 1e-4, "random_state": 42})
+    }
+
+    # Treinamento e Avaliação
+    # ============================
+
+    resultados_df = comparar_modelos(X_train_ready, X_test_ready, y_train, y_test, modelos_dict, pasta_plots=pasta_plots)
+
+    # Exporta tabela de comparação para CSV
+    resultados_df.to_csv(resultados_path)
+    print("\n📁 Resultados comparativos salvos em: plots/model_results_comparison.csv")
+
 if __name__ == "__main__":
-    main()
+    main(use_smote = False)
