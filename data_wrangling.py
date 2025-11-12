@@ -8,9 +8,6 @@ Etapas implementadas:
 3. Tratamento de outliers (log-transform e capping).
 4. Escalonamento de variáveis numéricas.
 5. Codificação de variáveis categóricas (LabelEncoder + OneHotEncoder).
-
-Autor: Guilherme Fernandes Secco
-Versão: 1.0
 """
 
 def importando_treino_teste(datasets):

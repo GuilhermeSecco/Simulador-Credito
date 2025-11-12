@@ -6,9 +6,9 @@ import joblib
 import os
 import pandas as pd
 
-datasets = ["X_train", "X_test", "y_train", "y_test"]
 
 # Importando os datasets
+datasets = ["X_train", "X_test", "y_train", "y_test"]
 X_train, X_test, y_train, y_test = importando_treino_teste(datasets)
 
 #Removendo a Coluna person_emp_length
@@ -21,6 +21,39 @@ print(f"Novas dimensões -> X_train: {X_train.shape}, X_test: {X_test.shape}")
 
 #Verificando se ainda existem colunas com valores nulos
 print(X_train.isnull().sum())
+
+#Calculando as taxas médias de juros por grau de crédito
+taxas_por_grade = (
+    X_train.groupby("loan_grade")["loan_int_rate"]
+    .median()  # ou .mean()
+    .round(2)
+    .to_dict()
+)
+
+print("📈 Taxas medianas por grade:")
+for grade, taxa in taxas_por_grade.items():
+    print(f"  {grade}: {taxa}%")
+
+# Substitui valores ausentes ou inconsistentes
+X_train["loan_int_rate"] = X_train.apply(
+    lambda row: taxas_por_grade.get(row["loan_grade"], 12.0)
+    if pd.isna(row["loan_int_rate"]) or row["loan_int_rate"] <= 0
+    else row["loan_int_rate"],
+    axis=1
+)
+
+# Aplica o mesmo ajuste para o conjunto de teste
+X_test["loan_int_rate"] = X_test.apply(
+    lambda row: taxas_por_grade.get(row["loan_grade"], 12.0)
+    if pd.isna(row["loan_int_rate"]) or row["loan_int_rate"] <= 0
+    else row["loan_int_rate"],
+    axis=1
+)
+
+# Salva o dicionário de taxas para uso posterior no simulador
+os.makedirs("models", exist_ok=True)
+joblib.dump(taxas_por_grade, "models/taxas_por_grade.pkl")
+print("Tabela de taxas medianas salva em: models/taxas_por_grade.pkl")
 
 #Criando a coluna loan_to_income_ratio
 X_train["loan_to_income_ratio"] = X_train["loan_amnt"] / (X_train["person_income"] + 1)
@@ -83,7 +116,7 @@ xgb_model = XGBClassifier(
     tree_method="hist",                #Metod interno de construção das árvores. 'auto': escolha automática. 'hist': usa histogramas — mais rápido e consome menos memória. 'gpu_hist': versão otimizada para GPU.
     scale_pos_weight=scale_pos_weight, #Corrige a influência da classe minoritária na função de perda. Melhora recall da classe minoritária.
     base_score=0.5,                    #Define o “chute inicial” do modelo.
-    eval_metric="aucpr"              #Métrica usada internamente para avaliar o erro durante o treino. 'logloss' → perda logística (default para classificação binária). 'auc' → área sob a curva ROC. 'error' → taxa de erro simples
+    eval_metric="aucpr"                #Métrica usada internamente para avaliar o erro durante o treino. 'logloss' → perda logística (default para classificação binária). 'auc' → área sob a curva ROC. 'error' → taxa de erro simples
 )
 
 #Treinando o Modelo
@@ -94,4 +127,4 @@ print("Modelo treinado com sucesso!")
 #Salvando o Modelo
 os.makedirs("models", exist_ok=True)
 joblib.dump(xgb_model, "models/XGBClassifier_simulador.pkl")
-print("💾 Modelo salvo em: models/XGBClassifier_simulador.pkl")
+print("Modelo salvo em: models/XGBClassifier_simulador.pkl")
