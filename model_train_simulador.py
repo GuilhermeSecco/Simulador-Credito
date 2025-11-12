@@ -141,3 +141,14 @@ print("Modelo treinado com sucesso!")
 os.makedirs("models", exist_ok=True)
 joblib.dump(xgb_model, "models/XGBClassifier_simulador.pkl")
 print("Modelo salvo em: models/XGBClassifier_simulador.pkl")
+
+#Salvando a importância das features para uso no simulador Flask
+feature_importances = dict(zip(todas_cols, xgb_model.feature_importances_))
+joblib.dump(feature_importances, "models/feature_importance.pkl")
+print("Importâncias das variáveis salvas em: models/feature_importance.pkl")
+
+#Mostrando as 10 features mais importantes no console
+sorted_importances = sorted(feature_importances.items(), key=lambda x: x[1], reverse=True)[:10]
+print("\nTop 10 variáveis mais importantes:")
+for nome, imp in sorted_importances:
+    print(f"  {nome:<40} {imp:.4f}")
