@@ -5,6 +5,7 @@ from xgboost import XGBClassifier
 import joblib
 import os
 import pandas as pd
+import numpy as np
 
 
 # Importando os datasets
@@ -38,7 +39,7 @@ taxas_por_grade = (
     .to_dict()
 )
 
-print("📈 Taxas medianas por grade:")
+print("Taxas medianas por grade:")
 for grade, taxa in taxas_por_grade.items():
     print(f"  {grade}: {taxa}%")
 
@@ -66,6 +67,9 @@ print("Tabela de taxas medianas salva em: models/taxas_por_grade.pkl")
 #Criando a coluna loan_to_income_ratio
 X_train["loan_to_income_ratio"] = X_train["loan_amnt"] / (X_train["person_income"] + 1)
 X_test["loan_to_income_ratio"] = X_test["loan_amnt"] / (X_test["person_income"] + 1)
+
+X_train["loan_to_income_ratio"] = np.log1p(X_train["loan_to_income_ratio"])
+X_test["loan_to_income_ratio"] = np.log1p(X_test["loan_to_income_ratio"])
 
 #Substituindo a coluna loan_percent_income pela coluna loan_to_income_ratio
 if "loan_percent_income" in X_train.columns:
@@ -114,9 +118,10 @@ scale_pos_weight = y_train.value_counts()[0] / y_train.value_counts()[1]
 
 #Inicialização do modelo
 xgb_model = XGBClassifier(
-    n_estimators=2000,                 #Número total de árvores. Valores maiores reduzem o bias, mas podem gerar overfitting.
-    learning_rate=0.08,                #Taxa de aprendizado do modelo. Valores maiores resultam em aprendizado mais rápido, porém geram overfitting
+    n_estimators=3000,                 #Número total de árvores. Valores maiores reduzem o bias, mas podem gerar overfitting.
+    learning_rate=0.03,                #Taxa de aprendizado do modelo. Valores maiores resultam em aprendizado mais rápido, porém geram overfitting
     max_depth=6,                       #Profundidade máxima de cada árvore. Valores maiores reduzem o bias, mas podem gerar overfitting.
+    min_child_weight=10,               #Define o peso mínimo que um nó filho precisa ter para que o modelo considere criar uma nova divisão. Valores mais altos fazem o modelo perder nuances e valores mais baixos geram overfitting
     subsample=0.9,                     #Age como regularização, ajuda a reduzir a correlação entre árvores para reduzir overfitting, valores comuns: 0.6~0.9
     colsample_bytree=0.8,              #Controla o número de variáveis consideradas a cada árvore. Evita que algumas features dominem todas as divisões. Valores típicos: 0.7~0.9
     random_state=42,                   #Random State fixo para reprodução futura dos mesmos resultados
