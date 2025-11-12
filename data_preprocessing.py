@@ -85,9 +85,6 @@ def main():
     #Já sabemos pela EDA que o dataset possui valores nulos
     print(df.isnull().sum(),"\n")
 
-    #Dropando os nulos da coluna person_emp_length
-    df = df.dropna(subset=["person_emp_length"])
-
     #Separando o valor alvo do resto
     X, y = atribuir_valor_alvo(df, "loan_status")
 

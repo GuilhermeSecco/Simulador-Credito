@@ -56,11 +56,9 @@ def avaliar_modelo(modelo, X_test, y_test, pasta_plots):
     print("\nRelatório de Classificação:")
     print(classification_report(y_test, y_pred))
 
-    # ==========================
-    # 📈 Gráficos e Visualizações
-    # ==========================
+    #Gráficos e Visualizações
 
-    # 1️⃣ Matriz de confusão
+    #1 - Matriz de confusão
     cm = confusion_matrix(y_test, y_pred)
     plt.figure(figsize=(6, 4))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=["Pago", "Não Pago"],
@@ -72,7 +70,7 @@ def avaliar_modelo(modelo, X_test, y_test, pasta_plots):
     plt.tight_layout()
     plt.close()
 
-    # 2️⃣ Curva ROC
+    #2 - Curva ROC
     if y_proba is not None:
         fpr, tpr, _ = roc_curve(y_test, y_proba)
         roc_auc = auc(fpr, tpr)
@@ -86,7 +84,7 @@ def avaliar_modelo(modelo, X_test, y_test, pasta_plots):
         salvar_plot(modelo.__class__.__name__, pasta_base=pasta_plots, model=True, metrica="Curva_ROC")
         plt.close()
 
-    # 3️⃣ Importância das features
+    # 3 - Importância das features
     if hasattr(modelo, "feature_importances_"):
         importances = modelo.feature_importances_
         #Normaliza automaticamente caso as importâncias não estejam entre 0 e 1
@@ -108,11 +106,11 @@ def avaliar_modelo(modelo, X_test, y_test, pasta_plots):
         importancia.to_csv(caminho_csv, header=["Importância"], index_label="Variável")
         print(f"📁 Importâncias salvas em: {caminho_csv}\n")
 
-        # 🔹 Gráfico de barras horizontais
+        #Gráfico de barras horizontais
         top_n = 8
         top_features = importancia.head(top_n)
 
-        # Para exibir a mais importante no topo, invertemos a ordem para o barh
+        #Para exibir a mais importante no topo, invertemos a ordem para o barh
         top_features_rev = top_features[::-1]
 
         values = top_features_rev.values
@@ -215,6 +213,14 @@ def main(use_smote = False):
     #Importando os datasets
     X_train, X_test, y_train, y_test = importando_treino_teste(datasets)
 
+    #Removendo a Coluna person_emp_length
+    if "person_emp_length" in X_train.columns:
+        X_train = X_train.drop(columns=["person_emp_length"])
+    if "person_emp_length" in X_test.columns:
+        X_test = X_test.drop(columns=["person_emp_length"])
+    print("Coluna 'person_emp_length' removida com sucesso!")
+    print(f"Novas dimensões -> X_train: {X_train.shape}, X_test: {X_test.shape}")
+
     #Corrigindo o formato do Valor-alvo
     y_train = y_train.squeeze()
     y_test = y_test.squeeze()
@@ -245,8 +251,6 @@ def main(use_smote = False):
 
 
     #Escolha entre original e SMOTE
-    # ============================
-
     if use_smote:
         print("\n🚀 Aplicando SMOTE para balanceamento das classes...")
         from imblearn.over_sampling import SMOTE
@@ -287,22 +291,20 @@ def main(use_smote = False):
                            "max_iter": 2000, "tol": 1e-4, "random_state": 42})
     }
 
-    # Treinamento e Avaliação
-    # ============================
+    #Treinamento e Avaliação
 
     resultados_df, melhor_modelo = comparar_modelos(X_train_ready, X_test_ready, y_train, y_test, modelos_dict, pasta_plots=pasta_plots)
 
     from joblib import dump
     import os
 
-    # Salva o modelo escolhido
+    #Salvamento do modelo escolhido
     os.makedirs("models", exist_ok=True)
     caminho_modelo = f"models/{melhor_modelo.__class__.__name__}.pkl"
-
     dump(melhor_modelo, caminho_modelo)
     print(f" Modelo {melhor_modelo} salvo em: {caminho_modelo}")
 
-    # Exporta tabela de comparação para CSV
+    #Exportando tabela de comparação para CSV
     resultados_df.to_csv(resultados_path)
     print("\n📁 Resultados comparativos salvos em: plots/model_results_comparison.csv")
 
