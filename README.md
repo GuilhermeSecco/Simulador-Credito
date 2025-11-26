@@ -93,7 +93,7 @@ XGBClassifier(
     
     AUC (ROC): 0.95
 
-🌐 Estrutura do Projeto
+## 🌐 Estrutura do Projeto
 
     ml_models/
     ├── model_train_simulador.py          # Treinamento do modelo
